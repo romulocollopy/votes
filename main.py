@@ -41,7 +41,6 @@ class ProposalsParser:
         pro_dict = {i['code']: i for i in tmp_list}
         self.proposals_list = list(pro_dict.values())
 
-
     def write_to_csv(self):
 
         with open('proposals.csv', 'w', newline='') as csvfile:
@@ -56,6 +55,7 @@ class VoteParser:
 
     def __init__(self, proposal_list):
         self.proposals_list = proposal_list
+        self.votes_list = []
 
     def request_vote(self, proposal_dict):
         year = proposal_dict['year']
@@ -79,23 +79,36 @@ class VoteParser:
             self.request_proposals()
             raw_xml = self.response.content
 
-        self.xml = ET.fromstring(raw_xml)
+        try:
+            self.xml = ET.fromstring(raw_xml)
+        except:
+            pass
 
-    def parse_xml(self):
+    def parse_xml(self, proposal_dict):
         tmp_list = []
         deputados = self.xml.find('Votacoes').find('Votacao').find('votos').findall('Deputado')
         for deputado in deputados:
             tmp_list += [
                 dict(
-                    nome = str.decode(deputado.get('Nome').encode('utf-8')),
+                    nome = deputado.get('Nome').encode('utf-8'),
                     ide_cadastro = deputado.get('ideCadastro'),
                     partido = deputado.get('Partido'),
                     uf = deputado.get('UF'),
-                    voto = str.decode(deputado.get('Voto').encode('utf-8')),
+                    voto = deputado.get('Voto').encode('utf-8'),
+                    numero_proposta = proposal_dict['number'],
+                    ano_proposta = proposal_dict['year'],
+                    tipo_proposta = proposal_dict['type'],
+                    codigo_proposta = proposal_dict['code'],
                 )
             ]
-        pro_dict = {i['ide_cadastro']: i for i in tmp_list}
-        self.votes_list = list(pro_dict.values())
+        self.votes_list += tmp_list
+
+    def get_all_votes(self):
+        for prop in self.proposals_list:
+            self.request_vote(prop)
+            self.get_xml_content()
+            self.parse_xml(prop)
+
 
     def write_to_csv(self):
 
@@ -143,9 +156,7 @@ class ProsposicoesTest(unittest.TestCase):
         self.proposals.parse_xml()
 
         v = VoteParser(self.proposals.proposals_list)
-        v.request_vote(v.proposals_list[0])
-        v.get_xml_content()
-        v.parse_xml()
+        v.get_all_votes()
         v.write_to_csv()
 
 
